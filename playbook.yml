@@ -1,0 +1,129 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    monitoring_dir: /home/vagrant/monitoring
+    node_exporter_version: "1.3.1"
+    docker_compose_version: "2.20.2"
+    docker_user: "vagrant"
+
+  tasks:
+    - name: Install system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg-agent
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    - name: Add Docker repository key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        update_cache: yes
+
+    - name: Install Docker components
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Add user to docker group
+      user:
+        name: "{{ docker_user }}"
+        groups: docker
+        append: yes
+
+    - name: Install Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v{{ docker_compose_version }}/docker-compose-linux-x86_64"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Download Node Exporter
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        dest: /tmp/node_exporter.tar.gz
+
+    - name: Extract Node Exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp
+        remote_src: yes
+
+    - name: Install Node Exporter binary
+      copy:
+        src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+        dest: /usr/local/bin/node_exporter
+        mode: '0755'
+        remote_src: yes
+
+    - name: Create Node Exporter user
+      user:
+        name: node_exporter
+        system: yes
+        shell: /usr/sbin/nologin
+
+    - name: Setup Node Exporter service
+      copy:
+        src: files/node_exporter.service
+        dest: /etc/systemd/system/node_exporter.service
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start node_exporter
+      systemd:
+        name: node_exporter
+        enabled: yes
+        state: started
+
+    - name: Create monitoring directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ docker_user }}"
+        group: "{{ docker_user }}"
+      loop:
+        - "{{ monitoring_dir }}"
+        - "{{ monitoring_dir }}/prometheus"
+        - "{{ monitoring_dir }}/grafana/provisioning"
+
+    - name: Deploy Prometheus config
+      template:
+        src: prometheus.yml.j2
+        dest: "{{ monitoring_dir }}/prometheus/prometheus.yml"
+        owner: "{{ docker_user }}"
+        group: "{{ docker_user }}"
+
+    - name: Copy Docker Compose file
+      copy:
+        src: docker-compose.yml
+        dest: "{{ monitoring_dir }}/docker-compose.yml"
+        owner: "{{ docker_user }}"
+        group: "{{ docker_user }}"
+
+    - name: Setup Grafana provisioning
+      ansible.builtin.copy:
+        src: grafana/provisioning/
+        dest: "{{ monitoring_dir }}/grafana/provisioning/"
+        owner: "{{ docker_user }}"
+        group: "{{ docker_user }}"
+        directory_mode: '0755'
+      register: grafana_provisioning
+
+    - name: Start docker-compose
+      command: docker-compose up -d
+      args:
+        chdir: "{{ monitoring_dir }}"
