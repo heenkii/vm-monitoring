@@ -1,10 +1,10 @@
-# VM monotoring
+# VM monotoring 
 
 ## Структура проекта
 
 ```
 ├── files
-│      └── node_exporter.service
+│   └── node_exporter.service
 ├── grafana
 │   └── provisioning
 │       ├── dashboards
@@ -20,10 +20,9 @@
 └── Vagrantfile
 ```
 
-### Описание основных файлов
+## Описание основных файлов
 
 ### Vagrantfile
-
 ```
 Определяет параметры виртуальной машины:
 
@@ -34,7 +33,6 @@
 ```
 
 ### playbook.yml
-
 ```
 - Установка системных пакетов
 - Установка Docker
@@ -47,43 +45,32 @@
 - Копирование файлов для автоматической настройки источников данных и дашбордов Grafana
 - Запуск контейнеров docker
 ```
-
-## docker-compose.yml
-
+### docker-compose.yml
 ```
 Описывает два сервиса:
-
-    Prometheus для собора метрик с Node Exporter
-
-    Grafana для визуализации метрик собранных prometheus (при запуске контейнеров автоматически загружаются настройки дашбордов и источников данных из папки provisioning)
+    - Prometheus для собора метрик с Node Exporter
+    - Grafana для визуализации метрик собранных prometheus (при запуске контейнеров автоматически загружаются настройки дашбордов и источников данных из папки provisioning)
 ```
 
-## templates/prometheus.yml.j2
-
+### templates/prometheus.yml.j2
 ```
 Шаблон конфигурации Prometheus. В шаблоне используется переменная `host_ip`, которая передаётся из Vagrantfile.
 ```
 
-## grafana/provisioning
-
+### grafana/provisioning
 ```
 Файлы, необходимые для автоматической настройки Grafana:
     - dashboards – настройки и JSON-конфигурация дашборда
     - datasources – настройки источников данных
 ```
 
-## files/node_exporter.service
-
+### files/node_exporter.service
 ```
 Файл systemd, описывающий сервис для Node Exporter
 ```
 
----
-
----
 
 # Запуск проекта
-
 ```bash
 git clone https://github.com/yourusername/vm-monitoring.git
 cd vm-monitoring
